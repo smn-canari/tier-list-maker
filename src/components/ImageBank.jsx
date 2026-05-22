@@ -1,5 +1,24 @@
-import { useEffect, useRef, useState } from 'react'
-import { loadStoredImages, saveStoredImages } from '../storage/imageBankStorage'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
+  loadStoredImageBank,
+  saveStoredImageBank,
+} from '../storage/imageBankStorage'
 
 function formatFileSize(size) {
   if (size < 1024 * 1024) {
@@ -9,12 +28,65 @@ function formatFileSize(size) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function SortableImageCard({ image }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: image.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <article
+      className={`image-card${isDragging ? ' image-card--dragging' : ''}`}
+      data-image-id={image.id}
+      key={image.id}
+      ref={setNodeRef}
+      style={style}
+      title="Drag to reorder"
+      {...attributes}
+      {...listeners}
+    >
+      <img src={image.previewUrl} alt={image.name} />
+      <div className="image-card__meta">
+        <strong>{image.name}</strong>
+        <span>
+          {image.type || 'image'} / {formatFileSize(image.size)}
+        </span>
+      </div>
+    </article>
+  )
+}
+
 function ImageBank() {
-  const [images, setImages] = useState([])
+  const [imagesById, setImagesById] = useState({})
+  const [imageOrder, setImageOrder] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [storageError, setStorageError] = useState('')
   const objectUrlsRef = useRef(new Set())
   const hasLoadedStoredImagesRef = useRef(false)
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  const images = useMemo(
+    () => imageOrder.map((id) => imagesById[id]).filter(Boolean),
+    [imageOrder, imagesById],
+  )
 
   useEffect(() => {
     const objectUrls = objectUrlsRef.current
@@ -22,20 +94,26 @@ function ImageBank() {
 
     async function restoreImages() {
       try {
-        const storedImages = await loadStoredImages()
-        const restoredImages = storedImages.map((image) => {
-          const previewUrl = URL.createObjectURL(image.blob)
+        const storedImageBank = await loadStoredImageBank()
+        const restoredImagesById = Object.fromEntries(
+          Object.entries(storedImageBank.imagesById).map(([id, image]) => {
+            const previewUrl = URL.createObjectURL(image.blob)
 
-          objectUrls.add(previewUrl)
+            objectUrls.add(previewUrl)
 
-          return {
-            ...image,
-            previewUrl,
-          }
-        })
+            return [
+              id,
+              {
+                ...image,
+                previewUrl,
+              },
+            ]
+          }),
+        )
 
         if (isMounted) {
-          setImages(restoredImages)
+          setImagesById(restoredImagesById)
+          setImageOrder(storedImageBank.imageOrder)
         }
       } catch {
         if (isMounted) {
@@ -64,17 +142,17 @@ function ImageBank() {
       return
     }
 
-    async function persistImages() {
+    async function persistImageBank() {
       try {
-        await saveStoredImages(images)
+        await saveStoredImageBank({ imagesById, imageOrder })
         setStorageError('')
       } catch {
         setStorageError('Images could not be saved in this browser.')
       }
     }
 
-    persistImages()
-  }, [images])
+    persistImageBank()
+  }, [imagesById, imageOrder])
 
   function handleImageSelect(event) {
     const selectedImages = Array.from(event.target.files ?? [])
@@ -93,8 +171,34 @@ function ImageBank() {
       objectUrlsRef.current.add(image.previewUrl)
     })
 
-    setImages((currentImages) => [...currentImages, ...selectedImages])
+    setImagesById((currentImagesById) => ({
+      ...currentImagesById,
+      ...Object.fromEntries(selectedImages.map((image) => [image.id, image])),
+    }))
+    setImageOrder((currentImageOrder) => [
+      ...currentImageOrder,
+      ...selectedImages.map((image) => image.id),
+    ])
     event.target.value = ''
+  }
+
+  function handleDragEnd(event) {
+    const { active, over } = event
+
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    setImageOrder((currentImageOrder) => {
+      const oldIndex = currentImageOrder.indexOf(active.id)
+      const newIndex = currentImageOrder.indexOf(over.id)
+
+      if (oldIndex === -1 || newIndex === -1) {
+        return currentImageOrder
+      }
+
+      return arrayMove(currentImageOrder, oldIndex, newIndex)
+    })
   }
 
   return (
@@ -127,25 +231,19 @@ function ImageBank() {
       ) : null}
 
       {images.length > 0 ? (
-        <div className="image-bank__grid" aria-live="polite">
-          {images.map((image) => (
-            <article
-              className="image-card"
-              draggable="true"
-              data-image-id={image.id}
-              key={image.id}
-              title="Drag behavior will be added later"
-            >
-              <img src={image.previewUrl} alt={image.name} />
-              <div className="image-card__meta">
-                <strong>{image.name}</strong>
-                <span>
-                  {image.type || 'image'} / {formatFileSize(image.size)}
-                </span>
-              </div>
-            </article>
-          ))}
-        </div>
+        <DndContext
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+          sensors={sensors}
+        >
+          <SortableContext items={imageOrder} strategy={rectSortingStrategy}>
+            <div className="image-bank__grid" aria-live="polite">
+              {images.map((image) => (
+                <SortableImageCard image={image} key={image.id} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       ) : (
         <div className="image-bank__empty">
           <p>Select multiple images to start building your bank.</p>

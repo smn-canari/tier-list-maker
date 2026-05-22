@@ -94,11 +94,25 @@
   border-radius: 8px;
   background: var(--card-bg);
   cursor: grab;
+  outline: none;
+  touch-action: none;
   user-select: none;
 }
 
 .image-card:active {
   cursor: grabbing;
+}
+
+.image-card:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.image-card--dragging {
+  border-color: var(--accent);
+  box-shadow: 0 16px 35px var(--drag-shadow);
+  opacity: 0.78;
+  z-index: 2;
 }
 
 .image-card img {

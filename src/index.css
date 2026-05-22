@@ -8,6 +8,7 @@
   --border: #d9e0ea;
   --accent: #2563eb;
   --focus: rgba(37, 99, 235, 0.24);
+  --drag-shadow: rgba(15, 23, 42, 0.18);
   --warning: #9a3412;
   --warning-bg: #fff7ed;
 
@@ -40,6 +41,7 @@
     --border: #2f3a4c;
     --accent: #60a5fa;
     --focus: rgba(96, 165, 250, 0.3);
+    --drag-shadow: rgba(0, 0, 0, 0.4);
     --warning: #fdba74;
     --warning-bg: #2d1f17;
   }
