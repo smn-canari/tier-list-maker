@@ -1,10 +1,13 @@
 :root {
   --text: #5d6675;
+  --muted: #7b8494;
   --text-h: #111827;
   --bg: #f8fafc;
   --surface: #fff;
   --card-bg: #fff;
   --image-bg: #e5e7eb;
+  --drop-bg: #f8fafc;
+  --drop-bg-active: #eff6ff;
   --border: #d9e0ea;
   --accent: #2563eb;
   --focus: rgba(37, 99, 235, 0.24);
@@ -33,11 +36,14 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #aab2c0;
+    --muted: #8d98aa;
     --text-h: #f8fafc;
     --bg: #111827;
     --surface: #182131;
     --card-bg: #111827;
     --image-bg: #263244;
+    --drop-bg: #131c2b;
+    --drop-bg-active: #172844;
     --border: #2f3a4c;
     --accent: #60a5fa;
     --focus: rgba(96, 165, 250, 0.3);
